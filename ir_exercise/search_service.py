@@ -18,19 +18,36 @@ DOCS = "documents"
 SEARCH_INDEX = INDEX_NAME
 
 
+# def create_query(query_str: str):
+#     # Todo:
+#     #  Make your query better by discovering search features, e.g.:
+#     #  - differences between 'should' and 'must'
+#     #  - boosting fields
+#     #  - ...
+#     #  More details
+#     #  - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-bool-query.html
+#     #  - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-boosting-query.html
+
+
 def create_query(query_str: str):
-    # Todo:
-    #  Make your query better by discovering search features, e.g.:
-    #  - differences between 'should' and 'must'
-    #  - boosting fields
-    #  - ...
-    #  More details
-    #  - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-bool-query.html
-    #  - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-boosting-query.html
     query = {
         "bool": {
-            "must": [{"match": {"title": query_str}}],
-            "should": [],
+            "must": [
+                {
+                    "multi_match": {
+                        "query": query_str,
+                        "fields": ["title", "summary", "plot"],
+                        "type": "cross_fields",  # Chooses the best matching field for scoring
+                    }
+                }
+            ],
+            "should": [
+                {"match": {"summary": query_str}},  # Additional match on summary for boosting
+                {
+                    "match_phrase": {"plot": {"query": query_str, "slop": 3}}
+                },  # Matches phrases in the plot with a slop of 3
+            ],
+            "minimum_should_match": 0,  # Ensures at least one 'should' condition is met
         }
     }
     return query

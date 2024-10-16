@@ -16,28 +16,51 @@ class Indexer:
         )
         self.es_client.ping()
 
+    # def _create_mappings(self):
+    #     # Todo:
+    #     #  Improve mapping by defining separate analyzers for separate fields
+    #     #  See an example mapping provided for the title field, with a keyword analyzer
+    #     #  More details:
+    #     #  - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html
+    #     }
+
     def _create_mappings(self):
-        # Todo:
-        #  Improve mapping by defining separate analyzers for separate fields
-        #  See an example mapping provided for the title field, with a keyword analyzer
-        #  More details:
-        #  - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping.html
         return {
             "properties": {
-                "title": {
+                "title": {"type": "text", "analyzer": "classic"},  # Standard analyzer for titles
+                "summary": {
                     "type": "text",
-                    "analyzer": "keyword", }
+                    "analyzer": "english",  # Standard analyzer for summaries
+                },
+                "plot": {
+                    "type": "text",
+                    "analyzer": "english",  # Custom analyzer with stopwords removed
+                },
             }
         }
 
+    # def _create_settings(self):
+    # Todo:
+    #  Define your own tokenizers, filters and analyzers here
+    #  More details:
+    #   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-tokenizers.html
+    #   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-tokenfilters.html
+    #   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-analyzers.html
+    # return {}
+
     def _create_settings(self):
-        # Todo:
-        #  Define your own tokenizers, filters and analyzers here
-        #  More details:
-        #   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-tokenizers.html
-        #   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-tokenfilters.html
-        #   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-analyzers.html
-        return {}
+        return {
+            "analysis": {
+                "filter": {"english_stop": {"type": "stop", "stopwords": "_english_"}},
+                "analyzer": {
+                    "custom_text_analyzer": {
+                        "type": "custom",
+                        "tokenizer": "standard",
+                        "filter": ["lowercase", "english_stop", "asciifolding"],
+                    }
+                },
+            }
+        }
 
     def create_index(self, index_name: str, recreate: bool = False) -> None:
         if self.es_client.indices.exists(index=index_name):
@@ -56,7 +79,7 @@ class Indexer:
         self.es_client.indices.create(index=index_name, mappings=mappings, settings=settings)
 
     def populate_index(
-            self, index_name: str, data_path: str, generate: Callable[[str, str], Generator]
+        self, index_name: str, data_path: str, generate: Callable[[str, str], Generator]
     ) -> None:
         logger.info(f"Populating index {index_name}...")
         bulk(self.es_client, generate(index_name, data_path), refresh=True)
@@ -81,6 +104,7 @@ def generate_data(index_name: str, data_path: str):
         yield {
             "title": doc["title"],
             "summary": doc["summary"],
+            "plot": doc["plot"],
             "_index": index_name,
             "_id": doc["title"],
         }
@@ -93,7 +117,7 @@ def get_args():
         "--recreate",
         action="store_true",
         help="If set, already existing index will be deleted and recreated. "
-             "If not set, the index will be kept and documents with the same id will be overwritten.",
+        "If not set, the index will be kept and documents with the same id will be overwritten.",
     )
     parser.add_argument(
         "-i",
